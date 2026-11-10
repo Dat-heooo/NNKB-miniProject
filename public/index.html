@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CMS Dashboard - Quản Lý Sinh Viên</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-wrapper">
+    <!-- Backdrop for mobile sidebar -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+      <div class="brand">
+        <i class="bi bi-mortarboard-fill"></i>
+        <span>EduManager CMS</span>
+      </div>
+
+      <ul class="sidebar-nav">
+        <li class="nav-item">
+          <a class="nav-link active" data-tab="tab-lophoc">
+            <i class="bi bi-building"></i>
+            <span>Quản Lý Lớp Học</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="tab-sinhvien">
+            <i class="bi bi-people-fill"></i>
+            <span>Quản Lý Sinh Viên</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="tab-chapter3">
+            <i class="bi bi-cpu-fill"></i>
+            <span>Giám Sát Event & Cache</span>
+          </a>
+        </li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div>ExpressJS + PostgreSQL</div>
+        <small class="text-secondary">Node.js Design Patterns</small>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="main-wrapper">
+      <!-- TOP NAVBAR -->
+      <header class="top-navbar">
+        <div class="d-flex align-items-center gap-3">
+          <button class="btn btn-outline-secondary btn-sm d-lg-none" id="toggleSidebarBtn">
+            <i class="bi bi-list fs-5"></i>
+          </button>
+          <h5 class="mb-0 fw-semibold text-secondary d-none d-sm-block" id="pageTitle">
+            <i class="bi bi-building me-1"></i> Quản Lý Lớp Học
+          </h5>
+        </div>
+
+        <!-- Role Switcher & Permission Status -->
+        <div class="d-flex align-items-center gap-2 gap-sm-3">
+          <!-- Mode Test Option -->
+          <div class="form-check form-switch d-none d-md-flex align-items-center me-2">
+            <input class="form-check-input me-1" type="checkbox" id="testModeSwitch">
+            <label class="form-check-label small text-muted" for="testModeSwitch" title="Bật để cho phép bấm nút dù không có quyền, giúp kiểm thử lỗi 403 Forbidden từ Backend">
+              Cho phép test 403
+            </label>
+          </div>
+
+          <!-- Role Selector -->
+          <div class="role-switcher-card">
+            <i class="bi bi-person-badge text-primary fs-5"></i>
+            <div class="d-flex flex-column">
+              <span class="small fw-semibold text-muted" style="font-size: 0.7rem; line-height: 1;">VAI TRÒ HIỆN TẠI</span>
+              <select class="form-select form-select-sm border-0 bg-transparent p-0 fw-bold shadow-none" id="roleSelect" style="cursor: pointer; width: auto;">
+                <option value="admin">Admin (Full quyền)</option>
+                <option value="teacher">Manager / Teacher (Không được xóa)</option>
+                <option value="student">Viewer / Student (Chỉ đọc)</option>
+              </select>
+            </div>
+            <span class="role-badge admin" id="roleBadge">ADMIN</span>
+          </div>
+
+          <!-- Active Permissions List -->
+          <div class="d-none d-xl-flex align-items-center" id="permissionBadges">
+            <!-- Render dynamically -->
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT BODY -->
+      <main class="content-body">
+        
+        <!-- ==================================================== -->
+        <!-- TAB 1: QUẢN LÝ LỚP HỌC                               -->
+        <!-- ==================================================== -->
+        <div class="tab-pane-content" id="tab-lophoc">
+          <div class="card-custom">
+            <div class="card-header-custom">
+              <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 450px;">
+                <div class="input-group input-group-sm">
+                  <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                  <input type="text" class="form-control" id="classSearchInput" placeholder="Tìm kiếm mã lớp, tên lớp, khoa...">
+                </div>
+                <button class="btn btn-outline-secondary btn-sm" id="classRefreshBtn" title="Tải lại">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+
+              <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" id="openAddClassModalBtn" data-permission="CREATE">
+                  <i class="bi bi-plus-circle"></i>
+                  <span>Thêm Lớp Học</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-responsive position-relative">
+              <div class="loading-overlay d-none" id="classLoading">
+                <div class="spinner-border text-primary" role="status"></div>
+              </div>
+              <table class="table table-custom table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 70px;">ID</th>
+                    <th>Mã Lớp</th>
+                    <th>Tên Lớp Học</th>
+                    <th>Khoa Quản Lý</th>
+                    <th>Niên Khóa</th>
+                    <th class="text-center">Số Lượng SV</th>
+                    <th class="text-end" style="width: 120px;">Hành Động</th>
+                  </tr>
+                </thead>
+                <tbody id="classTableBody">
+                  <!-- Render dynamically via JavaScript -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="small text-muted" id="classPaginationInfo">
+                Đang tải dữ liệu...
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" id="classLimitSelect" style="width: 90px;">
+                  <option value="5">5 / trang</option>
+                  <option value="10" selected>10 / trang</option>
+                  <option value="20">20 / trang</option>
+                  <option value="50">50 / trang</option>
+                </select>
+                <nav>
+                  <ul class="pagination pagination-sm mb-0" id="classPaginationNav">
+                    <!-- Pagination buttons -->
+                  </ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================== -->
+        <!-- TAB 2: QUẢN LÝ SINH VIÊN                             -->
+        <!-- ==================================================== -->
+        <div class="tab-pane-content d-none" id="tab-sinhvien">
+          <div class="card-custom">
+            <div class="card-header-custom">
+              <div class="d-flex align-items-center gap-2 flex-grow-1 flex-wrap">
+                <!-- Search -->
+                <div class="input-group input-group-sm" style="max-width: 280px;">
+                  <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                  <input type="text" class="form-control" id="studentSearchInput" placeholder="Họ tên, mã SV, email...">
+                </div>
+
+                <!-- Class Filter -->
+                <select class="form-select form-select-sm" id="studentClassFilter" style="max-width: 220px;">
+                  <option value="">-- Tất cả lớp học --</option>
+                  <!-- Populated from API -->
+                </select>
+
+                <!-- Gender Filter -->
+                <select class="form-select form-select-sm" id="studentGenderFilter" style="max-width: 130px;">
+                  <option value="">-- Giới tính --</option>
+                  <option value="Nam">Nam</option>
+                  <option value="Nữ">Nữ</option>
+                </select>
+
+                <button class="btn btn-outline-secondary btn-sm" id="studentRefreshBtn" title="Tải lại">
+                  <i class="bi bi-arrow-clockwise"></i>
+                </button>
+              </div>
+
+              <div>
+                <button class="btn btn-primary btn-sm d-flex align-items-center gap-1" id="openAddStudentModalBtn" data-permission="CREATE">
+                  <i class="bi bi-person-plus-fill"></i>
+                  <span>Thêm Sinh Viên</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-responsive position-relative">
+              <div class="loading-overlay d-none" id="studentLoading">
+                <div class="spinner-border text-primary" role="status"></div>
+              </div>
+              <table class="table table-custom table-hover mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">ID</th>
+                    <th>Mã SV</th>
+                    <th>Họ và Tên</th>
+                    <th>Email</th>
+                    <th>Tuổi (Năm sinh)</th>
+                    <th>Giới Tính</th>
+                    <th>Lớp Học</th>
+                    <th>Số ĐT</th>
+                    <th>Địa Chỉ</th>
+                    <th class="text-end" style="width: 110px;">Hành Động</th>
+                  </tr>
+                </thead>
+                <tbody id="studentTableBody">
+                  <!-- Render dynamically via JavaScript -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="p-3 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="small text-muted" id="studentPaginationInfo">
+                Đang tải danh sách sinh viên...
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" id="studentLimitSelect" style="width: 90px;">
+                  <option value="5">5 / trang</option>
+                  <option value="10" selected>10 / trang</option>
+                  <option value="20">20 / trang</option>
+                  <option value="50">50 / trang</option>
+                </select>
+                <nav>
+                  <ul class="pagination pagination-sm mb-0" id="studentPaginationNav">
+                    <!-- Pagination buttons -->
+                  </ul>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================================================== -->
+        <!-- TAB 3: GIÁM SÁT EVENT & CACHE (DEMO CHƯƠNG 3)         -->
+        <!-- ==================================================== -->
+        <div class="tab-pane-content d-none" id="tab-chapter3">
+          <div class="row g-3">
+            <!-- Panel 1: Cache Reader (Zalgo Prevention) -->
+            <div class="col-lg-6">
+              <div class="card-custom h-100">
+                <div class="card-header-custom">
+                  <span class="fw-bold"><i class="bi bi-lightning-charge-fill text-warning me-1"></i> CacheReader (Chống lỗi Zalgo)</span>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-sm" id="runCacheTestBtn">
+                      <i class="bi bi-play-fill"></i> Gọi API Test Cache
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" id="clearCacheBtn" title="Xóa Cache">
+                      <i class="bi bi-trash"></i> Xóa Cache
+                    </button>
+                  </div>
+                </div>
+                <div class="p-3">
+                  <p class="small text-muted mb-3">
+                    Minh họa hàm đọc dữ liệu có cache dùng Callback và <code>process.nextTick()</code> để đảm bảo 100% bất đồng bộ, loại bỏ hoàn toàn lỗi Zalgo (race conditions).
+                  </p>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <div class="stat-box">
+                        <div class="stat-val text-primary" id="cacheStatusBadge">Chưa gọi</div>
+                        <div class="stat-label">Trạng Thái Dữ Liệu</div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="stat-box">
+                        <div class="stat-val text-success" id="cacheDurationVal">0 ms</div>
+                        <div class="stat-label">Thời Gian Phản Hồi</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h6 class="small fw-bold text-uppercase text-muted mb-2">Thứ Tự Thực Thi (Execution Order Trace):</h6>
+                  <div class="trace-box" id="cacheTraceBox">
+                    Nhấn nút "Gọi API Test Cache" ở trên để quan sát thứ tự thực thi...
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Panel 2: EventEmitter & Memory Leak Prevention -->
+            <div class="col-lg-6">
+              <div class="card-custom h-100">
+                <div class="card-header-custom">
+                  <span class="fw-bold"><i class="bi bi-activity text-info me-1"></i> EventEmitter & Chống Rò Rỉ Bộ Nhớ</span>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-info btn-sm text-white" id="checkEmitterBtn">
+                      <i class="bi bi-arrow-repeat"></i> Kiểm Tra Listener
+                    </button>
+                    <button class="btn btn-outline-primary btn-sm" id="stressTestBtn">
+                      <i class="bi bi-send-check"></i> Stress Test (10 Reqs)
+                    </button>
+                  </div>
+                </div>
+                <div class="p-3">
+                  <p class="small text-muted mb-3">
+                    Đăng ký listener cho request và bắt buộc hủy qua <code>res.on('finish', () => removeListener(...))</code> để giữ số listener luôn ổn định ở mức an toàn.
+                  </p>
+
+                  <div class="row g-2 mb-3">
+                    <div class="col-6">
+                      <div class="stat-box">
+                        <div class="stat-val text-info" id="activeListenersVal">1</div>
+                        <div class="stat-label">Active Listeners</div>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="stat-box">
+                        <div class="stat-val text-success" id="memoryLeakStatusVal">An Toàn</div>
+                        <div class="stat-label">Trạng Thái Bộ Nhớ</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <h6 class="small fw-bold text-uppercase text-muted mb-2">Nhật Ký Sự Kiện Thời Gian Thực (Audit Stream):</h6>
+                  <div class="trace-box" id="emitterLogBox" style="color: #a7f3d0;">
+                    [Hệ thống] Sẵn sàng lắng nghe sự kiện CRUD từ Backend...
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: THÊM / CẬP NHẬT LỚP HỌC                       -->
+  <!-- ==================================================== -->
+  <div class="modal fade" id="classModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="classForm">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold" id="classModalTitle">Thêm Mới Lớp Học</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="classId">
+            <div class="mb-3">
+              <label for="classMaLop" class="form-label small fw-semibold">Mã Lớp Học <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="classMaLop" placeholder="VD: CNTT-K25A" required>
+            </div>
+            <div class="mb-3">
+              <label for="classTenLop" class="form-label small fw-semibold">Tên Lớp Học <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="classTenLop" placeholder="VD: Công nghệ Thông tin 1 - K25" required>
+            </div>
+            <div class="mb-3">
+              <label for="classKhoa" class="form-label small fw-semibold">Khoa Quản Lý <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="classKhoa" placeholder="VD: Công nghệ Thông tin" required>
+            </div>
+            <div class="mb-3">
+              <label for="classNienKhoa" class="form-label small fw-semibold">Niên Khóa <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="classNienKhoa" placeholder="VD: 2025-2029" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="classSaveBtn">Lưu Lớp Học</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: THÊM / CẬP NHẬT SINH VIÊN                     -->
+  <!-- ==================================================== -->
+  <div class="modal fade" id="studentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <form id="studentForm">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold" id="studentModalTitle">Thêm Mới Sinh Viên</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="studentId">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="studentMaSv" class="form-label small fw-semibold">Mã Sinh Viên <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="studentMaSv" placeholder="VD: SV2024099" required>
+              </div>
+              <div class="col-md-6">
+                <label for="studentHoTen" class="form-label small fw-semibold">Họ và Tên <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="studentHoTen" placeholder="VD: Nguyễn Văn Hoàng" required>
+              </div>
+
+              <div class="col-md-6">
+                <label for="studentNgaySinh" class="form-label small fw-semibold">Ngày Sinh <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="studentNgaySinh" required>
+              </div>
+              <div class="col-md-6">
+                <label for="studentGioiTinh" class="form-label small fw-semibold">Giới Tính <span class="text-danger">*</span></label>
+                <select class="form-select" id="studentGioiTinh" required>
+                  <option value="Nam">Nam</option>
+                  <option value="Nữ">Nữ</option>
+                  <option value="Khác">Khác</option>
+                </select>
+              </div>
+
+              <div class="col-md-6">
+                <label for="studentEmail" class="form-label small fw-semibold">Email <span class="text-danger">*</span></label>
+                <input type="email" class="form-control" id="studentEmail" placeholder="VD: hoang.nv@student.edu.vn" required>
+              </div>
+              <div class="col-md-6">
+                <label for="studentSoDienThoai" class="form-label small fw-semibold">Số Điện Thoại</label>
+                <input type="tel" class="form-control" id="studentSoDienThoai" placeholder="VD: 0912345678">
+              </div>
+
+              <div class="col-md-6">
+                <label for="studentLopId" class="form-label small fw-semibold">Lớp Học Trực Thuộc <span class="text-danger">*</span></label>
+                <select class="form-select" id="studentLopId" required>
+                  <option value="">-- Chọn lớp học --</option>
+                  <!-- Populated dynamically -->
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="studentDiaChi" class="form-label small fw-semibold">Địa Chỉ Thường Trú</label>
+                <input type="text" class="form-control" id="studentDiaChi" placeholder="VD: Số 12 Chùa Bộc, Hà Nội">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="studentSaveBtn">Lưu Sinh Viên</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================== -->
+  <!-- MODAL: XÁC NHẬN XÓA                                  -->
+  <!-- ==================================================== -->
+  <div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <div class="modal-body text-center p-4">
+          <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-2"></i>
+          <h5 class="fw-bold">Xác Nhận Xóa?</h5>
+          <p class="text-muted small mb-0" id="deleteConfirmMessage">Hành động này không thể hoàn tác.</p>
+        </div>
+        <div class="modal-footer justify-content-center p-2 border-0">
+          <button type="button" class="btn btn-light btn-sm px-3" data-bs-dismiss="modal">Hủy</button>
+          <button type="button" class="btn btn-danger btn-sm px-3" id="confirmDeleteBtn">Xóa Vĩnh Viễn</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer"></div>
+
+  <!-- Bootstrap 5 Bundle with Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- API Client Module -->
+  <script src="js/api.js"></script>
+  <!-- Main Application Logic -->
+  <script src="js/app.js"></script>
+</body>
+</html>
