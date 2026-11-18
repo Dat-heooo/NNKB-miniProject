@@ -12,3 +12,19 @@ services:
       - ./nginx/analyze_logs.sh:/usr/local/bin/analyze_logs.sh:ro
       - ./nginx/logs:/var/log/nginx
       - ./nginx/report:/usr/share/nginx/html
+
+  goaccess:
+    image: allinurl/goaccess:latest
+    container_name: goaccess_dashboard
+    restart: unless-stopped
+    ports:
+      - "7890:7890"
+    volumes:
+      - ./nginx/logs:/var/log/nginx:ro
+      - ./nginx/report:/report
+    command: >
+      /var/log/nginx/access.log
+      -o /report/report.html
+      --log-format=COMBINED
+      --real-time-html
+      --ws-url=ws://localhost:7890
